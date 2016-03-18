@@ -5,16 +5,12 @@
 "
 "============================================================================
 
-if exists("g:loaded_hexmode_plugin")
-    finish
-endif
-let g:loaded_hexmode_plugin = 1
 
 " ex command for toggling hex mode - define mapping if desired
 command -bar Hexmode call ToggleHex()
 
 " helper function to toggle hex mode
-function ToggleHex()
+function! ToggleHex()
 	" hex mode should be considered a read-only operation
 	" save values for modified and read-only for restoration later,
 	" and clear the read-only flag for now
@@ -52,7 +48,7 @@ function ToggleHex()
 endfunction
 
 " Exclude vim files from auto hexmode
-function IsVimFile()
+function! IsVimFile()
     let b:path = expand("%:p:h")
 
     " Loop through each directory in the runtime path
