@@ -15,6 +15,9 @@ endif
 let g:loaded_hexmode_plugin = 1
 " default auto hexmode file patterns
 let g:hexmode_patterns = get(g:, 'hexmode_patterns', '*.bin,*.exe,*.so,*.jpg,*.jpeg,*.gif,*.png,*.pdf,*.tiff')
+if !exists("g:hexmode_auto_open_binary_files")
+    let g:hexmode_auto_open_binary_files = 0
+endif
 
 " ex command for toggling hex mode - define mapping if desired
 command! -bar Hexmode call ToggleHex()
@@ -78,7 +81,9 @@ if has("autocmd")
         " set binary option for all binary files before reading them
         execute printf('au BufReadPre %s setlocal binary', g:hexmode_patterns)
 
-        au BufReadPre * let &binary = IsBinary() | let b:allow_hexmode = 1
+        if g:hexmode_auto_open_binary_files
+            au BufReadPre * let &binary = IsBinary() | let b:allow_hexmode = 1
+        endif
 
         " gzipped help files show up as binary in (and only in) BufReadPost
         au BufReadPre */doc/*.txt.gz let b:allow_hexmode = 0
@@ -90,8 +95,10 @@ if has("autocmd")
             \ endif
 
         " convert to hex on startup for binary files automatically
-        au BufReadPost *
-            \ if &binary && b:allow_hexmode | Hexmode | endif
+        if g:hexmode_auto_open_binary_files
+            au BufReadPost *
+                \ if &binary && b:allow_hexmode | Hexmode | endif
+        endif
 
         " When the text is freed, the next time the buffer is made active it will
         " re-read the text and thus not match the correct mode, we will need to
