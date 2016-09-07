@@ -83,10 +83,11 @@ if has("autocmd")
         execute printf('au BufReadPre %s setlocal binary', g:hexmode_patterns)
 
         if g:hexmode_auto_open_binary_files
-            au BufReadPre * let &binary = IsBinary() | let b:allow_hexmode = 1
+            "glob2regpat is not in vim7.4... and is even broken at the trunk
+            "The compound substitute is a stopgap
+            au BufReadPre * let &binary = IsBinary() |
+             \  let b:allow_hexmode = -1 == match(expand("<afile>"), substitute(substitute(substitute(g:hexmode_ignore_patterns,"\\.","\\\\.","g"),"*",".*","g"),",","\\\\|","g"))
         endif
-
-        execute printf('au BufReadPre %s let b:allow_hexmode=0', g:hexmode_ignore_patterns)
 
         " if on a fresh read the buffer variable is already set, it's wrong
         au BufReadPost *
