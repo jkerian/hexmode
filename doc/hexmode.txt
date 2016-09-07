@@ -45,11 +45,20 @@ mapping).
     inoremap <C-H> <Esc>:Hexmode<CR>
     vnoremap <C-H> :<C-U>Hexmode<CR>
 
-By default, bin and hex files are automatically opened in hex mode.
+By default, all binary type files will be opened in hexmode. This can
+be suppressed with the following line:
+
+    let g:hexmode_auto_open_binary_files = 0
+
 Additional file patterns may be added by modifying the
 g:hexmode_patterns variable in your vimrc:
 
     let g:hexmode_patterns += "*.jpg"
+
+If there are only a few file patterns you do not want to use in
+hexmode
+
+    let g:hexmode_ignore_patterns += "*.gzip"
 
 =====================================================================
 DEVELOPMENT                                      *HexmodeDevelopment*
