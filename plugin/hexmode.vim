@@ -15,8 +15,9 @@ endif
 let g:loaded_hexmode_plugin = 1
 " default auto hexmode file patterns
 let g:hexmode_patterns = get(g:, 'hexmode_patterns', '*.bin,*.exe,*.so,*.jpg,*.jpeg,*.gif,*.png,*.pdf,*.tiff')
+let g:hexmode_ignore_patterns = get(g:, 'hexmode_ignore_patterns', '*.Z,*.gz,*.bz2,*.lzma,*.xz')
 if !exists("g:hexmode_auto_open_binary_files")
-    let g:hexmode_auto_open_binary_files = 0
+    let g:hexmode_auto_open_binary_files = 1
 endif
 
 " ex command for toggling hex mode - define mapping if desired
@@ -85,8 +86,7 @@ if has("autocmd")
             au BufReadPre * let &binary = IsBinary() | let b:allow_hexmode = 1
         endif
 
-        " gzipped help files show up as binary in (and only in) BufReadPost
-        au BufReadPre */doc/*.txt.gz let b:allow_hexmode = 0
+        execute printf('au BufReadPre %s let b:allow_hexmode=0', g:hexmode_ignore_patterns)
 
         " if on a fresh read the buffer variable is already set, it's wrong
         au BufReadPost *
