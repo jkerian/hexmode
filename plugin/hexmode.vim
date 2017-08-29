@@ -12,13 +12,17 @@ if exists("g:loaded_hexmode_plugin")
     finish
 endif
 
-let g:loaded_hexmode_plugin = 1
-" default auto hexmode file patterns
-let g:hexmode_patterns = get(g:, 'hexmode_patterns', '*.bin,*.exe,*.so,*.jpg,*.jpeg,*.gif,*.png,*.pdf,*.tiff')
+
+" auto hexmode file patterns, default none
+let g:hexmode_patterns = get(g:, 'hexmode_patterns', '*.bin,*.hex')
+
+" autodetect binary files by content, default off
+let g:hexmode_autodetect = get(g:, 'hexmode_autodetect', 0)
+" Ignore some autodetected patterns
+
+" Hexmode conflicts with the gzip plugin. Because we can't detect if `vim -b` was used on the
+" command line and because we can't disable gzip, Hexmode must be disabled.
 let g:hexmode_ignore_patterns = get(g:, 'hexmode_ignore_patterns', '*.Z,*.gz,*.bz2,*.lzma,*.xz')
-if !exists("g:hexmode_auto_open_binary_files")
-    let g:hexmode_auto_open_binary_files = 1
-endif
 
 " ex command for toggling hex mode - define mapping if desired
 command! -bar Hexmode call ToggleHex()
@@ -28,48 +32,67 @@ function! ToggleHex()
     " hex mode should be considered a read-only operation
     " save values for modified and read-only for restoration later,
     " and clear the read-only flag for now
-    let l:modified=&mod
-    let l:oldreadonly=&readonly
-    let &readonly=0
-    let l:oldmodifiable=&modifiable
-    let &modifiable=1
+    let l:modified = &l:modified
+    let l:oldreadonly = &l:readonly
+    let l:oldmodifiable = &l:modifiable
+    setlocal noreadonly
+    setlocal modifiable
     if !exists("b:editHex") || !b:editHex
-    " save old options
-        let b:oldft=&ft
-        let b:oldbin=&bin
-        " set new options
-        setlocal binary " make sure it overrides any textwidth, etc.
-        let &ft="xxd"
+        " save old options
+        let b:oldft = &l:ft
+        let b:oldbin = &l:bin
         " set status
         let b:editHex=1
         " switch to hex editor
         silent %!xxd
+        " set new options
+        let &l:bin=1 " make sure it overrides any textwidth, etc.
+        let &l:ft="xxd"
     else
-    " restore old options
-        let &ft=b:oldft
-        if !b:oldbin
-            setlocal nobinary
-        endif
         " set status
         let b:editHex=0
         " return to normal editing
         silent %!xxd -r
+        " restore old options
+        let &l:ft = b:oldft
+        let &l:bin = b:oldbin
     endif
+
     " restore values for modified and read only state
-    let &mod=l:modified
-    let &readonly=l:oldreadonly
-    let &modifiable=l:oldmodifiable
+    let &l:modified = l:modified
+    let &l:readonly = l:oldreadonly
+    let &l:modifiable = l:oldmodifiable
 endfunction
 
-function! IsBinary()
-    if &binary
-        return 1
-    elseif executable('file')
-        let file = system('file -ibL ' . shellescape(expand('%:p')))
-        return file !~# 'inode/x-empty'
-            \ && file !~# 'inode/fifo'
-            \ && file =~# 'charset=binary'
+" Detection of a binary buffer is difficult to do right.  This used to call
+" `file -ibL` on the file being edited and inspect the results.
+" Unfortunately, calling `system()` during BufReadPre and BufReadPost
+" passes control to an external program temporarily.  This is bad because the
+" terminal was sent codes asking for the current cursor position, among
+" other things, and the terminal has a good chance of sending its response
+" right when the external program is executing.  Sadly, vim does not get
+" these escape sequences.  Want more details?  See fidian/hexmode#17.
+function! s:IsHexmodeEditable()
+    " See https://github.com/fidian/hexmode/issues/27
+    "glob2regpat is not in vim7.4... and is even broken at the trunk. The compound substitute is a stopgap
+
+    if expand('<afile>:p') =~ substitute(substitute(substitute(g:hexmode_ignore_patterns,"\\.","\\\\.","g"),"*",".*","g"),",","\\\\|","g")
+        return 0
     endif
+
+    " Otherwise, vim -b file should always work.
+    if &l:binary
+        return 1
+    endif
+
+    " This match looks for characters that are not whitespace of various
+    " sorts, printable ASCII, extended ASCII, and not Unicode.  Not great,
+    " but fairly fast and fairly acceptable.
+    if g:hexmode_autodetect && !!search('[\x00-\x08\x0e-\x1f\x7f]', 'wn')
+        return 1
+    endif
+
+    " Probably not a binary file.
     return 0
 endfunction
 
@@ -79,31 +102,26 @@ if has("autocmd")
     augroup Binary
         au!
 
-        " set binary option for all binary files before reading them
-        execute printf('au BufReadPre %s setlocal binary', g:hexmode_patterns)
-
-        if g:hexmode_auto_open_binary_files
-            "glob2regpat is not in vim7.4... and is even broken at the trunk
-            "The compound substitute is a stopgap
-            au BufReadPre * let &binary = IsBinary() |
-             \  let b:allow_hexmode = -1 == match(expand("<afile>"), substitute(substitute(substitute(g:hexmode_ignore_patterns,"\\.","\\\\.","g"),"*",".*","g"),",","\\\\|","g"))
+        " Set binary option for all binary files before reading them.
+        if !empty(g:hexmode_patterns)
+            execute printf('au BufReadPre %s setlocal binary', g:hexmode_patterns)
         endif
 
-        " if on a fresh read the buffer variable is already set, it's wrong
+        " If on a fresh read the buffer variable is already set, it's wrong.
         au BufReadPost *
             \ if exists('b:editHex') && b:editHex |
             \   let b:editHex = 0 |
             \ endif
 
-        " convert to hex on startup for binary files automatically
-        if g:hexmode_auto_open_binary_files
-            au BufReadPost *
-                \ if &binary && b:allow_hexmode | Hexmode | endif
-        endif
+        " Convert to hex on startup for binary files automatically.
+        au BufReadPost *
+            \ if s:IsHexmodeEditable() != 0 |
+            \   Hexmode |
+            \ endif
 
-        " When the text is freed, the next time the buffer is made active it will
-        " re-read the text and thus not match the correct mode, we will need to
-        " convert it again if the buffer is again loaded.
+        " When the text is freed, the next time the buffer is made active it
+        " will re-read the text and thus not match the correct mode, we will
+        " need to convert it again if the buffer is again loaded.
         au BufUnload *
             \ if getbufvar(expand("<afile>"), 'editHex') == 1 |
             \   call setbufvar(expand("<afile>"), 'editHex', 0) |
@@ -111,29 +129,29 @@ if has("autocmd")
 
         " before writing a file when editing in hex mode, convert back to non-hex
         au BufWritePre *
-            \ if exists("b:editHex") && b:editHex && &binary |
-            \  let oldview = winsaveview() |
-            \  let oldro=&ro | let &ro=0 |
-            \  let oldma=&ma | let &ma=1 |
+            \ if exists("b:editHex") && b:editHex |
+            \  let b:oldview = winsaveview() |
+            \  let b:oldro=&l:ro | let &l:ro=0 |
+            \  let b:oldma=&l:ma | let &l:ma=1 |
             \  undojoin |
             \  silent exe "%!xxd -r" |
-            \  let &ma=oldma | let &ro=oldro |
-            \  unlet oldma | unlet oldro |
-            \  let &undolevels = &undolevels |
+            \  let &l:ma=b:oldma | let &l:ro=b:oldro |
+            \  unlet b:oldma | unlet b:oldro |
+            \  let &l:ul = &l:ul |
             \ endif
 
         " after writing a binary file, if we're in hex mode, restore hex mode
         au BufWritePost *
-            \ if exists("b:editHex") && b:editHex && &binary |
-            \  let oldro=&ro | let &ro=0 |
-            \  let oldma=&ma | let &ma=1 |
+            \ if exists("b:editHex") && b:editHex |
+            \  let b:oldro=&l:ro | let &l:ro=0 |
+            \  let b:oldma=&l:ma | let &l:ma=1 |
             \  undojoin |
             \  silent exe "%!xxd" |
-            \  exe "set nomod" |
-            \  let &ma=oldma | let &ro=oldro |
-            \  unlet oldma | unlet oldro |
-            \  call winrestview(oldview) |
-            \  let &undolevels = &undolevels |
+            \  exe "setlocal nomod" |
+            \  let &l:ma=b:oldma | let &l:ro=b:oldro |
+            \  unlet b:oldma | unlet b:oldro |
+            \  call winrestview(b:oldview) |
+            \  let &l:ul = &l:ul |
             \ endif
     augroup END
 endif

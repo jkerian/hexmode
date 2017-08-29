@@ -32,34 +32,37 @@ the hex-filtered form before saving a file.sh inherit $@
 =====================================================================
 USAGE AND MAPPINGS                          *HexmodeUsageAndMappings*
 
+                                            *:Hexmode*
 Use this command to toggle xxd on and off
-
+>
     :Hexmode
-
+<
 Place the following into your vimrc to enable hexmode using
 Control-H.  Be aware that <C-H> is already a defined command, so
 override it with care (or use a different left hand side to the
 mapping).
-
+>
     nnoremap <C-H> :Hexmode<CR>
     inoremap <C-H> <Esc>:Hexmode<CR>
     vnoremap <C-H> :<C-U>Hexmode<CR>
-
-By default, all binary type files will be opened in hexmode. This can
-be suppressed with the following line:
-
-    let g:hexmode_auto_open_binary_files = 0
-
-Additional file patterns may be added by modifying the
-g:hexmode_patterns variable in your vimrc:
-
-    let g:hexmode_patterns += "*.jpg"
+<
+                                            *g:hexmode_patterns*
+The |g:hexmode_patterns| flag may be set to automatically open
+certain file patterns in hex mode. This flag is set to the following by default
+>
+    let g:hexmode_patterns = '*.bin,*.hex'
+<
+                                            *g:hexmode_autodetect*
+The |g:hexmode_autodetect| flag may be enabled to allow autodetection of binary
+files based on the file contents. The flag is off by default. E.g.,
+>
+    let g:hexmode_autodetect = 1
+<
 
 If there are only a few file patterns you do not want to use in
-hexmode
+hexmode in spite of turning hexmode_autodetect on, use something like:
 
     let g:hexmode_ignore_patterns += "*.gzip"
-
 =====================================================================
 DEVELOPMENT                                      *HexmodeDevelopment*
 
